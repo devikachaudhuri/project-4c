@@ -149,7 +149,7 @@ void stop(){
 
 void parse_inputs(){
   char buf[512];
-  ssize_t r = Read(STDIN_FILENO/*sockfd*/, buf, 512);
+  ssize_t r = Read(sockfd, buf, 512);
   int offset = 0;
   int count = 0;
   int i;
@@ -208,35 +208,36 @@ void parse_inputs(){
   }
 }
 
-void print_time();
+void print_time(char *time_buf);
 
 void button_func(){
-  print_time();
-  dprintf(STDIN_FILENO/*sockfd*/, "SHUTDOWN\n"); //TODO change to dprintf(1, "SHUTDOWN");
+  char time_buf[9];
+  print_time(time_buf);
+  dprintf(sockfd, "%s SHUTDOWN\n", time_buf); //TODO change to dprintf(1, "SHUTDOWN");
   if (logon == 1){
-    dprintf(logfd, "SHUTDOWN\n");
+    dprintf(logfd, "%s SHUTDOWN\n", time_buf);
   }
   Exit(0);
 }
 
-void print_time(){
-  char buffer[9];
+void print_time(char *time_buf){
+  //  char buffer[9];
   time_t rawtime;
   struct tm *timeinfo;
   time(&rawtime);
   timeinfo = localtime(&rawtime);
-  strftime(buffer, 9, "%H:%M:%S", timeinfo);
-  if (reports == 1){
-    dprintf(STDOUT_FILENO, "%s", buffer);//TODO: change to dprintf("%s", buffer)
-    dprintf(STDOUT_FILENO, " ");
+  strftime(time_buf, 9, "%H:%M:%S", timeinfo);
+  /*  if (reports == 1){
+    dprintf(sockfd, "%s", buffer);//TODO: change to dprintf("%s", buffer)
+    dprintf(sockfd, " ");
   }
   if (logon == 1){
     dprintf(logfd, "%s", buffer);
     dprintf(logfd, " ");
-  }		
+    }*/		
 }
 
-void get_temp(uint16_t value){
+float get_temp(uint16_t value){
   float R = 1023.0/value - 1.0;
   R = Ro * R;
 
@@ -244,12 +245,13 @@ void get_temp(uint16_t value){
   if (temp == 0){//f
     temperature = (temperature*1.8) + 32;
   }
-  if (reports == 1){
-    dprintf(STDOUT_FILENO, "%.1f\n", temperature);
+  /*if (reports == 1){
+    dprintf(sockfd, "%.1f\n", temperature);
   }
   if (logon == 1){
     dprintf(logfd, "%.1f\n", temperature);
-  }
+    }*/
+  return temperature;
 }
 
 int main (int argc, char **argv){
@@ -296,15 +298,22 @@ int main (int argc, char **argv){
   }
   
   struct pollfd pfd[1];
-  pfd[0].fd = /*sockfd*/STDIN_FILENO;
+  pfd[0].fd = sockfd;
   pfd[0].events = POLLIN;
   pfd[0].revents = 0;
   
   while(run_flag == 1){
     value = mraa_aio_read(tempsensor);
 
-    print_time();
-    get_temp(value);
+    char time_buf[9];
+    print_time(time_buf);
+    float t = get_temp(value);
+    if (reports == 1){
+      dprintf(sockfd, "%s %.1f\n", time_buf, t);
+    }
+    if (logon == 1){
+      dprintf(logfd, "%s %.1f\n", time_buf, t);
+    }
     sleep(amount);
     
 
@@ -319,9 +328,10 @@ int main (int argc, char **argv){
     }
     
   }
+  printf("here\n");
   mraa_gpio_close(button);
   mraa_aio_close(tempsensor);
-  // close(sockfd);
+  close(sockfd);
   return 0;
 }
 
