@@ -17,6 +17,9 @@
 #include <poll.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <openssl/ssl.h>
+#include <openssl/x509.h>
+#include <openssl/opensslv.h>
 
 int logon = 0;
 int logfd;
@@ -32,8 +35,13 @@ int id_num = 0;
 char *host_name = NULL;
 int port_num = 0;
 int sockfd;
+const SSL_METHOD *method;
+SSL *ssl;
+X509 *cert = NULL;
+SSL_CTX *ctx;
 
 int Exit(int exitnum);
+
 int Open(char * pathname, int flags, mode_t mode){
   int fd = open(pathname, flags, mode);
   if (fd == -1){
@@ -55,7 +63,9 @@ void Close(int fd){
 int Exit(int exitnum){
   if (logon == 1){
     Close(logfd);
-  }		 
+  }
+  SSL_shutdown(ssl);
+  SSL_free(ssl);
   exit(exitnum);
 }
 
@@ -152,7 +162,7 @@ void stop(){
 
 void parse_inputs(){
   char buf[512];
-  ssize_t r = Read(sockfd, buf, 512);
+  ssize_t r = SSL_read(ssl, buf, 512);
   int offset = 0;
   int count = 0;
   int i;
@@ -197,11 +207,8 @@ void parse_inputs(){
 	filename[count] = '\0';
 	dprintf(logfd, "%s\n", filename);
       }
-      else if (strncmp(buf + offset, "-EOF", 4) == 0){
-	//pass the test script
-      }
       else{
-	fprintf(stderr, "Invalid argument\n");
+	fprintf(stderr, "Invalid argument: %s of length %d", buf, strlen(buf));
 	Exit(1);
       }
       offset = i +1;
@@ -216,7 +223,9 @@ void print_time(char *time_buf);
 void button_func(){
   char time_buf[9];
   print_time(time_buf);
-  dprintf(sockfd, "%s SHUTDOWN\n", time_buf); //TODO change to dprintf(1, "SHUTDOWN");
+  char temp[20];
+  sprintf(temp, "%s SHUTDOWN\n", time_buf); //TODO change to dprintf(1, "SHUTDOWN");
+  SSL_write(ssl, temp, strlen(temp));
   if (logon == 1){
     dprintf(logfd, "%s SHUTDOWN\n", time_buf);
   }
@@ -294,8 +303,34 @@ int main (int argc, char **argv){
     fprintf(stderr, "Error connecting to the server.\n");
     Exit(2);
   }
+
+  OpenSSL_add_all_algorithms();
+  if(SSL_library_init() < 0){
+    fprintf(stderr, "Could not initialize the OpenSSL library.. \n");
+    Exit(2);
+  }
+  method = TLSv1_client_method();
+  ctx = SSL_CTX_new(method);
+  if (ctx == NULL){
+    fprintf(stderr, "unable to create a new SSL context structure.\n");
+    Exit(2);
+  }
+  ssl = SSL_new(ctx);
+  SSL_set_fd(ssl, sockfd);
+  if (SSL_connect(ssl) != 1){
+    fprintf(stderr, "Error: Could not build a SSL session.\n");
+    Exit(2);
+  }
+  cert = SSL_get_peer_certificate(ssl);
+  if (cert == NULL){
+    fprintf(stderr, "Error: Could not get a certificate.\n");
+    Exit(2);
+  }
+  
   printf("Connected\n");
-  dprintf(sockfd, "ID=%d\n", id_num);
+  char temp[20];
+  sprintf(temp, "ID=%d\n", id_num);
+  SSL_write(ssl, temp, strlen(temp));
   if(logon){
     dprintf(logfd, "ID=%d\n", id_num);
   }
@@ -312,7 +347,9 @@ int main (int argc, char **argv){
     print_time(time_buf);
     float t = get_temp(value);
     if (reports == 1){
-      dprintf(sockfd, "%s %.1f\n", time_buf, t);
+      char rep[20];
+      sprintf(rep, "%s %.1f\n", time_buf, t);
+      SSL_write(ssl, rep, strlen(rep));
     }
     if (logon == 1){
       dprintf(logfd, "%s %.1f\n", time_buf, t);
@@ -335,6 +372,7 @@ int main (int argc, char **argv){
   mraa_gpio_close(button);
   mraa_aio_close(tempsensor);
   close(sockfd);
+  SSL_free(ssl);
   return 0;
 }
 

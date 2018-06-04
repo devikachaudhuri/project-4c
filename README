@@ -2,3 +2,6 @@ NAME: Devika Chaudhuri
 ID: 304597339
 EMAIL: devika.chaudhuri@gmail.com
 
+I used this website to help me parse the non-option argumetn "PORT" : https://stackoverflow.com/questions/18079340/using-getopt-in-c-with-non-option-arguments
+
+I used this stack overflow thread to help me make an ssl socket: https://stackoverflow.com/questions/7698488/turn-a-simple-socket-into-an-ssl-socket
