@@ -2,6 +2,29 @@ NAME: Devika Chaudhuri
 ID: 304597339
 EMAIL: devika.chaudhuri@gmail.com
 
+Include files for TCP:
+#include <stdio.h>
+#include <getopt.h> - for option parsing
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <errno.h> - to use errno for error handling
+#include <string.h> - to use %s 
+#include <signal.h> - for signal handling
+#include <mraa/gpio.h> - to do general purpose IO with the Beaglebone button
+#include <mraa/aio.h> - to do analog IO with the Beaglebone temperature sensor
+#include <math.h> - for the log function 
+#include <poll.h> - to poll
+#include <sys/socket.h> - for making sockets 
+#include <netdb.h>
+
+New include files for TLS:
+(all the other include files are the same)
+#include <openssl/ssl.h> - 
+#include <openssl/x509.h> - 
+#include <openssl/opensslv.h> - 
+
 I used this website to help me parse the non-option argumetn "PORT" : https://stackoverflow.com/questions/18079340/using-getopt-in-c-with-non-option-arguments
 
 I used this stack overflow thread to help me make an ssl socket: https://stackoverflow.com/questions/7698488/turn-a-simple-socket-into-an-ssl-socket
